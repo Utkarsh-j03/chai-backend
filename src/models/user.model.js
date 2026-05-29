@@ -55,7 +55,7 @@ userSchema.pre("save", async function (next) {
   //=>arrow function avoided as arrow function cannot access 'this.'
   if (!this.isModified("password")) return next(); //only hash when password changed not on every save
 
-  this.password = bcrypt.hash(this.password, 10);
+  this.password = await bcrypt.hash(this.password, 10);
   next();
 });
 
@@ -91,4 +91,4 @@ userSchema.methods.generateRefreshToken = function () {
   );
 };
 
-export const user = mongoose.model("User", userSchema);
+export const User = mongoose.model("User", userSchema);
