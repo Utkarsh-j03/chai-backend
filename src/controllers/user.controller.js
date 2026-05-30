@@ -17,16 +17,15 @@ const registerUser = asyncHandler(async (req, res) => {
 
   //destructure and get fields from user req
   const { username, email, fullName, password } = req.body;
-
   //if any of the fields is empty after trim then returns true
   if (
-    [fullName, email, username, password].some((field) => field?.trime() === "")
+    [fullName, email, username, password].some((field) => field?.trim() === "")
   ) {
     throw new ApiError(400, "All fields are required");
   }
 
   //find if user with same username or email already exists
-  const existedUser = User.findOne({
+  const existedUser = await User.findOne({
     $or: [{ username }, { email }],
   });
 
@@ -36,7 +35,16 @@ const registerUser = asyncHandler(async (req, res) => {
 
   //if req contains files then get path of avatar and cover image files stored locally using multer
   const avatarLocalPath = req.files?.avatar[0]?.path;
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
+  //const coverImageLocalPath = req.files?.coverImage[0]?.path; ------------------error
+
+  let coverImageLocalPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
+    coverImageLocalPath = req.files.coverImage[0].path;
+  }
 
   //check if avatar file uplaoded....i.e file location found locally
   if (!avatarLocalPath) {
