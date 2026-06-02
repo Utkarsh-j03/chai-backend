@@ -82,4 +82,156 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, createdUser, "user registered successfully"));
 });
 
-export { registerUser };
+/*
+. 
+. 
+. 
+. 
+. 
+++++++++++++++++++++++++++++++++++++++++++++GENERATE TOKENS+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+. 
+. 
+. 
+. 
+. 
+*/
+
+const generateAccessAndRefreshTokens = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    const AccessToken = user.generateAccessToken();
+    const RefreshToken = user.generateRefreshToken();
+
+    //update user refreshtoken property
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+
+    return { AccessToken, RefreshToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something went wrong while generating refresh and access token"
+    );
+  }
+};
+
+/*
+. 
+. 
+. 
+. 
+. 
++++++++++++++++++++++++++++++++++++++++++++++++++++++LOGIN++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+. 
+. 
+. 
+. 
+. 
+*/
+
+const loginUser = asyncHandler(async (req, res) => {
+  // get user data from frontend
+  // validation(non empty): username or email based
+  // find username exits in db or name
+  // password check
+  // generate access and refresh token
+  // send cookies with tokens
+
+  const { username, email, password } = req.body;
+
+  if (!username && !email) {
+    throw new ApiError(400, "username or password is required");
+  }
+
+  const user = await User.findOne({
+    $or: [{ username }, { email }], //returns true if either an entry with email or username exists in db
+  });
+
+  //check if user present in db
+  if (!user) {
+    throw new ApiError(404, "user does not exist");
+  }
+
+  //cannot use our custom methods on User, as it has only mongodb properties.....user is our instance of db(which has our custom methods:isPasswordCorrect,etc)
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) {
+    throw new ApiError(401, "invalid user credentials");
+  }
+
+  const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+    user._id
+  );
+
+  //current 'user' has password access and no refresh tokens as tokens only generated till now, not set
+  //thus while sending response to user, must remove password and refreshtoken fields, as tokens will be sent via cookies
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options) //browser based auth
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser, //attach user data to response
+          accessToken, //mobile, bearer based auth
+          refreshToken,
+        },
+        "user logged in successfully"
+      )
+    );
+});
+
+/*
+. 
+. 
+. 
+. 
+. 
++++++++++++++++++++++++++++++++++++++++++++++++++++++++LOGOUT++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+. 
+. 
+. 
+. 
+. 
+*/
+
+const logoutUser = asyncHandler(async (req, res) => {
+  //find user in db using user id from req
+  //set refreshtoken to undefined
+  //clear cookies while returning response
+
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        refreshToken: undefined,
+      },
+    },
+    {
+      new: true,
+    }
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "user logged out"));
+});
+
+export { registerUser, loginUser, logoutUser };
