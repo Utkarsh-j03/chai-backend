@@ -53,10 +53,9 @@ const userSchema = new Schema(
 
 userSchema.pre("save", async function (next) {
   //=>arrow function avoided as arrow function cannot access 'this.'
-  if (!this.isModified("password")) return next(); //only hash when password changed not on every save
+  if (!this.isModified("password")) return; //only hash when password changed not on every save
 
   this.password = await bcrypt.hash(this.password, 10);
-  next;
 });
 
 userSchema.methods.isPasswordCorrect = async function (password) {
